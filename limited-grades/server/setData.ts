@@ -25,9 +25,13 @@ interface PoolEntry {
 
 const poolTtl = (set: MagicSet): number => (daysSince(set.startDate) < 45 ? 12 * HOUR_MS : 30 * DAY_MS);
 
+// Bump when the pool rules change, so cached pools built the old way are refetched.
+const POOL_VERSION = 2;
+const poolKey = (set: MagicSet): string => `pool-v${POOL_VERSION}-${set.code}`;
+
 const getPool = (set: MagicSet, refresh: boolean): Promise<Cached<PoolEntry>> =>
-  dedupe(`pool-${set.code}`, async () => {
-    const cached = await readCache<PoolEntry>(`pool-${set.code}`);
+  dedupe(poolKey(set), async () => {
+    const cached = await readCache<PoolEntry>(poolKey(set));
     if (!refresh && cached && isFresh(cached, poolTtl(set))) return cached;
     if (!set.scryfallCode) return cached ?? { savedAt: Date.now(), value: { cards: [], bonusSources: [] } };
     try {
@@ -36,7 +40,7 @@ const getPool = (set: MagicSet, refresh: boolean): Promise<Cached<PoolEntry>> =>
         `[api] ${set.code}: ${pool.cards.length} cards in the booster pool` +
           (pool.bonusSources.length ? `, bonus: ${pool.bonusSources.join(", ")}` : "")
       );
-      await writeCache(`pool-${set.code}`, pool);
+      await writeCache(poolKey(set), pool);
       return { savedAt: Date.now(), value: pool };
     } catch (error) {
       if (cached) {
