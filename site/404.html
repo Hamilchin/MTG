@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Not found · MTG</title>
+    <script>
+      // GitHub Pages serves this page for any path it doesn't have. The apps here are single-page apps,
+      // so a deep link like /MTG/limited-grades/trk/lists/abc goes back to /MTG/limited-grades/ with the
+      // rest of the path in ?__p=, and the app restores it.
+      (function () {
+        var segments = window.location.pathname.split("/").filter(Boolean);
+        if (segments.length >= 3) {
+          var base = "/" + segments[0] + "/" + segments[1] + "/";
+          var rest = segments.slice(2).join("/");
+          var query = window.location.search.slice(1);
+          window.location.replace(
+            base + "?__p=" + encodeURIComponent(rest) + (query ? "&__q=" + encodeURIComponent(query) : "") + window.location.hash
+          );
+        }
+      })();
+    </script>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #fafafa;
+        --fg: #262626;
+        --muted: #737373;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #171717;
+          --fg: #f5f5f5;
+          --muted: #a3a3a3;
+        }
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background: var(--bg);
+        color: var(--fg);
+        font: 16px/1.5 system-ui, sans-serif;
+      }
+      a {
+        color: inherit;
+      }
+      p {
+        color: var(--muted);
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Nothing here</h1>
+      <p>That page doesn't exist. <a id="home" href="../">Back to the MTG tools</a>.</p>
+    </main>
+    <script>
+      var first = window.location.pathname.split("/").filter(Boolean)[0];
+      if (first) document.getElementById("home").href = "/" + first + "/";
+    </script>
+  </body>
+</html>

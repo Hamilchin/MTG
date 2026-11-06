@@ -1,0 +1,79 @@
+name: Deploy to GitHub Pages
+
+# Publishes the hub page (site/) at the root and each project under its own folder:
+#   https://<user>.github.io/<repo>/                  ← site/index.html
+#   https://<user>.github.io/<repo>/limited-grades/   ← limited-grades/
+# Runs on every push to main and every 6 hours to refresh card data. Limited Grades includes 17Lands
+# grades only when the repository variable INCLUDE_17LANDS is "true".
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: limited-grades/package-lock.json
+
+      # ---- Limited Grades ----
+      - name: Install (limited-grades)
+        working-directory: limited-grades
+        run: npm ci
+      - name: Test (limited-grades)
+        working-directory: limited-grades
+        run: npm test
+      # Keep fetched card data between runs so Scryfall and 17Lands are asked as rarely as possible.
+      - uses: actions/cache@v4
+        with:
+          path: limited-grades/data/cache
+          key: limited-grades-data-${{ github.run_id }}
+          restore-keys: limited-grades-data-
+      - name: Fetch card data (limited-grades)
+        working-directory: limited-grades
+        run: npm run data
+        env:
+          INCLUDE_17LANDS: ${{ vars.INCLUDE_17LANDS }}
+      - name: Build (limited-grades)
+        working-directory: limited-grades
+        run: npm run build:pages
+        env:
+          BASE_PATH: /${{ github.event.repository.name }}/limited-grades/
+
+      # ---- Put the site together ----
+      - name: Assemble
+        run: |
+          mkdir -p _site
+          cp -R site/. _site/
+          cp -R limited-grades/dist _site/limited-grades
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
