@@ -194,6 +194,19 @@ export const toCard = (card: ScryfallCard, bonus: boolean): Card => {
 
 const VARIANT_FRAME_EFFECTS = new Set(["showcase", "extendedart", "inverted", "etched", "shatteredglass"]);
 
+// Foil treatments and promotional printings. Other promo types are just tags (e.g. "universesbeyond",
+// or "ffvii" for which Final Fantasy a card comes from) and still mark a regular printing.
+const VARIANT_PROMO_TYPES = new Set([
+  "surgefoil", "galaxyfoil", "textured", "serialized", "poster", "bundle", "headliner", "promopack",
+  "prerelease", "buyabox", "boosterfun", "confettifoil", "halofoil", "stepandcompleat", "oilslick",
+  "neonink", "raisedfoil", "doublerainbow", "ripplefoil", "fracturefoil", "manafoil", "firstplacefoil",
+  "invisibleink", "embossed", "gilded", "rainbowfoil", "silverfoil", "stamped", "datestamped", "playtest",
+  "release", "setpromo", "starterdeck", "thick", "jpwalker", "glossy", "draftweekend", "playpromo",
+  "event", "storechampionship", "tourney", "league", "arenaleague", "openhouse", "gameday", "intropack",
+  "planeswalkerdeck", "plastic", "concept", "scroll", "portrait", "vault", "dossier", "beginnerbox",
+  "boxtopper", "convention", "fnm", "giftbox", "instore", "judgegift", "mediainsert", "wizardsplaynetwork",
+]);
+
 const isBasicLand = (card: ScryfallCard): boolean => /\bBasic\b.*\bLand\b/.test(card.type_line ?? "");
 
 /** The plain printing of a main-set card (not a borderless/showcase/foil-treatment variant). */
@@ -203,7 +216,7 @@ const isRegularPrinting = (card: ScryfallCard): boolean =>
   !card.full_art &&
   !card.textless &&
   !(card.frame_effects ?? []).some((effect) => VARIANT_FRAME_EFFECTS.has(effect)) &&
-  (card.promo_types ?? []).every((type) => type === "universesbeyond");
+  !(card.promo_types ?? []).some((type) => VARIANT_PROMO_TYPES.has(type));
 
 const byCollectorNumber = (a: ScryfallCard, b: ScryfallCard): number =>
   Number.parseInt(a.collector_number, 10) - Number.parseInt(b.collector_number, 10);
@@ -222,10 +235,13 @@ export const fetchBoosterPool = async (scryfallCode: string): Promise<PoolResult
   const sets = await fetchAllSets();
   const info = sets.find((s) => s.code === scryfallCode);
   const printings = await searchAll(`e:${scryfallCode}`, "prints");
+  // Scryfall marks which printings come in boosters once a set is out a while; variant printings
+  // collapse into their card below (same name). Brand-new sets aren't marked yet, so fall back to
+  // the regular printings.
   const flagged = printings.some((card) => card.booster);
   const main = printings
-    .filter((card) => card.lang === "en" && !isBasicLand(card) && isRegularPrinting(card))
-    .filter((card) => !flagged || card.booster)
+    .filter((card) => card.lang === "en" && !isBasicLand(card))
+    .filter((card) => (flagged ? card.booster : isRegularPrinting(card)))
     .sort(byCollectorNumber);
 
   const byName = new Map<string, Card>();

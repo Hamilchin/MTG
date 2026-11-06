@@ -13,6 +13,7 @@ import {
 } from "../src/lib/types.ts";
 import { DAY_MS, dedupe, HOUR_MS, isFresh, readCache, writeCache, type Cached } from "./cache.ts";
 import { fetchBoosterPool, fetchByNames, fetchSetIcon, toCard } from "./scryfall.ts";
+import { HttpError } from "./http.ts";
 import { cardDataPage, fetchCardData, fetchFilters, type ApiCard } from "./seventeenLands.ts";
 
 // ---- Card pool (Scryfall) ----
@@ -118,7 +119,13 @@ const buildGradedCards = async (set: MagicSet): Promise<GradedCard[]> => {
   return result;
 };
 
-const statsTtl = (set: MagicSet): number => (daysSince(set.startDate) < 30 ? 3 * HOUR_MS : 7 * DAY_MS);
+// New sets change by the hour; a few months in, the numbers barely move.
+const statsTtl = (set: MagicSet): number => {
+  const age = daysSince(set.startDate);
+  if (age < 30) return 3 * HOUR_MS;
+  if (age < 120) return DAY_MS;
+  return 30 * DAY_MS;
+};
 const MIN_FORCED_REFRESH_MS = 10 * 60 * 1000;
 
 const loadStats = async (set: MagicSet): Promise<StatsEntry> => {
@@ -145,8 +152,14 @@ const loadStats = async (set: MagicSet): Promise<StatsEntry> => {
   return { status: { kind: "ok", updatedAt: new Date().toISOString(), arenaStart: start }, cards };
 };
 
-/** Fresh stats, or stale ones right away while a refresh runs in the background. */
-const getStats = async (set: MagicSet, refresh: boolean): Promise<StatsEntry> => {
+const describeError = (error: unknown): string =>
+  error instanceof HttpError ? `17Lands returned HTTP ${error.status}` : String(error).slice(0, 160);
+
+/**
+ * Fresh stats, or (for the dev server) stale ones right away while a refresh runs in the
+ * background. `waitForFresh` makes stale data wait for the refresh instead (static builds).
+ */
+const getStats = async (set: MagicSet, refresh: boolean, waitForFresh: boolean): Promise<StatsEntry> => {
   const key = `stats-${set.code}`;
   const cached = await readCache<StatsEntry>(key);
   const ttl = cached?.value.status.kind === "ok" ? statsTtl(set) : HOUR_MS;
@@ -159,13 +172,13 @@ const getStats = async (set: MagicSet, refresh: boolean): Promise<StatsEntry> =>
       await writeCache(key, entry);
       return entry;
     } catch (error) {
-      console.warn(`[api] ${set.code}: 17Lands failed: ${String(error)}`);
+      console.warn(`[api] ${set.code}: 17Lands failed: ${describeError(error)}`);
       if (cached) return cached.value;
-      return { status: { kind: "error", message: String(error) }, cards: [] } satisfies StatsEntry;
+      return { status: { kind: "error", message: describeError(error) }, cards: [] } satisfies StatsEntry;
     }
   });
 
-  if (cached && cached.value.status.kind === "ok" && !wantsRefresh) {
+  if (cached && cached.value.status.kind === "ok" && !wantsRefresh && !waitForFresh) {
     reload.catch(() => undefined);
     return cached.value;
   }
@@ -228,10 +241,12 @@ export interface PayloadOptions {
   refresh?: boolean;
   /** Ask 17Lands for grades (on by default; the hosted build turns it off unless configured). */
   include17Lands?: boolean;
+  /** Wait for expired data to be refetched rather than returning it (for static builds). */
+  waitForFresh?: boolean;
 }
 
 export const getSetPayload = async (code: string, options: PayloadOptions = {}): Promise<SetPayload> => {
-  const { refresh = false, include17Lands = true } = options;
+  const { refresh = false, include17Lands = true, waitForFresh = false } = options;
   const set = lookupSet(code);
   if (!set) throw new NotFoundError(`Unknown set "${code}"`);
 
@@ -241,7 +256,7 @@ export const getSetPayload = async (code: string, options: PayloadOptions = {}):
   };
   const [pool, stats, iconData] = await Promise.all([
     getPool(set, refresh),
-    include17Lands ? getStats(set, refresh) : Promise.resolve(disabled),
+    include17Lands ? getStats(set, refresh, waitForFresh) : Promise.resolve(disabled),
     getIcon(set),
   ]);
 

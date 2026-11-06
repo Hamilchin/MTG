@@ -51,6 +51,8 @@ jobs:
         run: npm run data
         env:
           INCLUDE_17LANDS: ${{ vars.INCLUDE_17LANDS }}
+          # Pace 17Lands requests gently; sets it refuses are retried on the next run.
+          SEVENTEEN_LANDS_GAP_MS: "1500"
       - name: Build (limited-grades)
         working-directory: limited-grades
         run: npm run build:pages

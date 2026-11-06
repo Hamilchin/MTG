@@ -40,7 +40,12 @@ const GradesPage = ({ set, payload, filters }: ViewProps) => {
                 <strong>17Lands has no {set.label} data yet.</strong> {listsLink} in the meantime.
               </>
             )}
-            {stats.kind === "error" && <>Couldn&apos;t load 17Lands data: {stats.message}</>}
+            {stats.kind === "error" && (
+              <>
+                <strong>No 17Lands grades for {set.label} right now</strong> ({stats.message}). They&apos;ll be filled in
+                on a later refresh. {listsLink} in the meantime.
+              </>
+            )}
             {stats.kind === "disabled" && (
               <>
                 <strong>This copy doesn&apos;t include 17Lands grades.</strong> See{" "}

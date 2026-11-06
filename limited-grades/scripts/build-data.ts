@@ -22,7 +22,7 @@ for (const set of ALL_SETS) {
   // Cubes have no Scryfall set, so without 17Lands there are no cards to show.
   if (!set.scryfallCode && !include17Lands) continue;
   try {
-    const payload = await getSetPayload(set.code, { include17Lands });
+    const payload = await getSetPayload(set.code, { include17Lands, waitForFresh: true });
     if (payload.cards.length === 0) {
       console.warn(`  ${set.code}: no cards, skipped`);
       continue;
